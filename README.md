@@ -11,8 +11,7 @@ Current non-installable.
 
 Quick start:
 
-"""
+```
 import cloudpca
 size,linewidth = cloudpca.structure_function('my_3d_image_cube.fits')
-
-"""
+```
