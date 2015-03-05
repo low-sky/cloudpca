@@ -4,23 +4,53 @@ from spectral_cube import SpectralCube
 import pdb
 import numpy.fft as fft
 
-# Code block to parse string / SpectralCube into PCA
-#     if isinstance(input,SpectralCube):
-#         cube = input
-#     elif isinstance(input,str):
-#         try:
-#             cube = SpectralCube.read(input)
-#         except:
-#             raise
-#     else:
-#         raise NotImplementedError
+from astropy.modeling import models, fitting
+
+
+def WidthEstimate2D(inList):
+    scales = np.zeros(len(inList))
+    for idx,z in enumerate(inList):
+        x = fft.fftfreq(z.shape[0])
+        y = fft.fftfreq(z.shape[1])
+        xmat,ymat = np.meshgrid(x,y,indexing='xy')
+        g = models.Gaussian2D(x_mean=[0],y_mean=[0],
+                              x_stddev =[1],y_stddev = [1],
+                              amplitude = z[0,0],
+                              theta = [0],
+                              fixed ={'amplitude':True,
+                                      'x_mean':True,
+                                      'y_mean':True})
+        fit_g = fitting.LevMarLSQFitter()
+        output = fit_g(g,xmat,ymat,z)
+#        plt.imshow(z)
+#        plt.contour(output(xmat,ymat))
+#        plt.show()
+        scales[idx]=np.sqrt(output.x_stddev.value[0]**2+
+                            output.y_stddev.value[0]**2)
+    return scales
+
+
+def WidthEstimate1D(inList):
+    scales = np.zeros(len(inList))
+    for idx,y in enumerate(inList):
+        x = fft.fftfreq(len(y))
+        g = models.Gaussian1D(amplitude=y[0],mean=[0],stddev = [1],
+                              fixed={'amplitude':True,'mean':True})
+        fit_g = fitting.LevMarLSQFitter()
+        output = fit_g(g,x,y)
+        scales[idx]=np.abs(output.stddev.value[0])
+#        plt.plot(x,y)
+#        plt.plot(x,output(x))
+#        plt.show()
+    return scales
+
 
 def AutoCorrelateImages(imageList):
     acorList = []
     for image in imageList:
         fftx = fft.fft2(image)
         fftxs = np.conjugate(fftx)
-        acor = fft.fftshift(fft.ifft2((fftx-fftx.mean())*(fftxs-fftxs.mean())))
+        acor = fft.ifft2((fftx-fftx.mean())*(fftxs-fftxs.mean()))
         acorList.append(acor.real)
     return(acorList)
 
@@ -29,7 +59,7 @@ def AutoCorrelateSpectrum(evec,nScales = 10):
     for idx in range(nScales):
         fftx = fft.fft(evec[:,idx])
         fftxs = np.conjugate(fftx)
-        acor = fft.fftshift(fft.ifft((fftx-fftx.mean())*(fftxs-fftxs.mean())))
+        acor = fft.ifft((fftx-fftx.mean())*(fftxs-fftxs.mean()))
         acorList.append(acor.real)
     return(acorList)
 
