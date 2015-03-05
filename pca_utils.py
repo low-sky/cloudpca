@@ -1,7 +1,6 @@
 import numpy as np
 import astropy.io.fits as fits
 from spectral_cube import SpectralCube
-import pdb
 import numpy.fft as fft
 
 from astropy.modeling import models, fitting
