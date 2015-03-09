@@ -84,6 +84,7 @@ def pca(cube):
     # Correct elements on the diagonal for the doubling in the transpose-and-add
     PCAMatrix[range(cube.shape[0]),range(cube.shape[0])] = \
         PCAMatrix[range(cube.shape[0]),range(cube.shape[0])]/2
+    PCAMatrix[np.isnan(PCAMatrix)]=0.0
     evals,evec = np.linalg.eig(PCAMatrix)
     order = (np.argsort(evals))[::-1]
     evals = evals[order]
