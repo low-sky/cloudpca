@@ -9,8 +9,8 @@ from astropy.modeling import models, fitting
 def WidthEstimate2D(inList):
     scales = np.zeros(len(inList))
     for idx,z in enumerate(inList):
-        x = fft.fftfreq(z.shape[0])
-        y = fft.fftfreq(z.shape[1])
+        x = fft.fftfreq(z.shape[0])*z.shape[0]/2.0
+        y = fft.fftfreq(z.shape[1])*z.shape[1]/2.0
         xmat,ymat = np.meshgrid(x,y,indexing='xy')
         g = models.Gaussian2D(x_mean=[0],y_mean=[0],
                               x_stddev =[1],y_stddev = [1],
@@ -32,7 +32,7 @@ def WidthEstimate2D(inList):
 def WidthEstimate1D(inList):
     scales = np.zeros(len(inList))
     for idx,y in enumerate(inList):
-        x = fft.fftfreq(len(y))
+        x = fft.fftfreq(len(y))*len(y)/2.0
         g = models.Gaussian1D(amplitude=y[0],mean=[0],stddev = [1],
                               fixed={'amplitude':True,'mean':True})
         fit_g = fitting.LevMarLSQFitter()
