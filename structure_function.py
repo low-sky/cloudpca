@@ -2,7 +2,7 @@ from . import pca_utils as pca
 
 from spectral_cube import SpectralCube
 
-def structure_function(input,nScales = 10, noiseScales = 10, method = 'fit'):
+def structure_function(input,nScales = 10, noiseScales = 10, method = 'fit', meanCorrection = False):
     """
     Calculates structure function of molecular line emission cube using PCA
 
@@ -39,7 +39,7 @@ def structure_function(input,nScales = 10, noiseScales = 10, method = 'fit'):
     else:
         raise NotImplementedError
 
-    evals, evec, _ = pca.pca(cube)
+    evals, evec, _ = pca.pca(cube, meanCorrection = meanCorrection)
     imgStack = pca.EigenImages(evec, cube, nScales = nScales)
     acorImg = pca.AutoCorrelateImages(imgStack)
     NoiseACF = pca.NoiseACF(evec, cube ,nScales = noiseScales)

@@ -110,20 +110,36 @@ def EigenImages(evec,cube,nScales = 10):
         imageList.append(thisImage)
     return imageList
 
-def pca(cube):
+def pca(cube, meanCorrection = False):
     PCAMatrix = np.zeros((cube.shape[0],cube.shape[0]))
+    GoodCount  = np.zeros((cube.shape[0],cube.shape[0]),dtype=np.float)
     ChannelMeans = np.zeros((cube.shape[0]))
-    for i in range(cube.shape[0]):
-        ChannelMeans[i] = np.nanmean(cube[i,:,:].value)*0
+    if meanCorrection:
+        for i in range(cube.shape[0]):
+            ChannelMeans[i] = np.nanmean(cube[i,:,:].value)
+    else:
+        ChannelMeans = np.zeros(cube.shape[0])
+        
     for i in range(cube.shape[0]):
         for j in range(i):
-            PCAMatrix[i,j] = np.nanmean(((cube[i,:,:].value-ChannelMeans[i])*(cube[j,:,:].value-ChannelMeans[j])))
+            PlaneProduct = (cube[i,:,:].value-ChannelMeans[i])*(cube[j,:,:].value-ChannelMeans[j])
+            PCAMatrix[i,j] = np.nanmean(PlaneProduct)
+            GoodCount[i,j] = np.sum(np.isfinite(PlaneProduct))
         PCAMatrix[i,i] = np.nanmean((cube[i,:,:].value-ChannelMeans[i])**2)
+        GoodCount[i,i] = np.sum(np.isfinite(cube[i,:,:]))
+
     PCAMatrix = PCAMatrix + np.transpose(PCAMatrix)
+    GoodCount = GoodCount + np.transpose(GoodCount)
     # Correct elements on the diagonal for the doubling in the transpose-and-add
     PCAMatrix[range(cube.shape[0]),range(cube.shape[0])] = \
         PCAMatrix[range(cube.shape[0]),range(cube.shape[0])]/2
-    PCAMatrix[np.isnan(PCAMatrix)]=0.0
+    GoodCount[range(cube.shape[0]),range(cube.shape[0])] = \
+        GoodCount[range(cube.shape[0]),range(cube.shape[0])]/2
+    
+    if meanCorrection:
+        N = cube.shape[1]*cube.shape[2]
+        PCAMatrix = PCAMatrix * GoodCount/(GoodCount-1)
+    PCAMatrix[~np.isfinite(PCAMatrix)]=0.0
     evals,evec = np.linalg.eig(PCAMatrix)
     order = (np.argsort(evals))[::-1]
     evals = evals[order]
