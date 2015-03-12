@@ -18,6 +18,9 @@ def structure_function(input,nScales = 10, noiseScales = 10, method = 'fit', mea
     method : 'fit' or 'interpolate'
        Choses method to estimate the 1/e widths of the ACFs.  Defaults to fitting 
        a Gaussian ('fit').  'interpolate' uses a spline interpolation
+    meanCorrection : bool
+       If True, calculates a proper covariance in PCA matrix.  If False (default), no correction
+       is applied, following the literature approach.
 
     Returns
     -------
