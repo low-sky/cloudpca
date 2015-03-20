@@ -23,7 +23,7 @@ def WidthEstimate2D(inList, method = 'fit', NoiseACF = 0):
                                      'x_mean':True,
                                      'y_mean':True})
             fit_g = fitting.LevMarLSQFitter()
-            output = fit_g(g,xmat,ymat,z-NoiseACF)
+            output = fit_g(g,xmat,ymat,(z-NoiseACF).T)
             scales[idx]=2**0.5*np.sqrt(output.x_stddev.value[0]**2+
                                        output.y_stddev.value[0]**2)
         if method == 'interpolate':
