@@ -2,7 +2,7 @@ from . import pca_utils as pca
 
 from spectral_cube import SpectralCube
 
-def structure_function(input,nScales = 10, noiseScales = 10, method = 'fit', meanCorrection = False):
+def structure_function(input,nScales = 10, noiseScales = 10, spatialMethod = 'contour', spectralMethod = 'interpolate', meanCorrection = False):
     """
     Calculates structure function of molecular line emission cube using PCA
 
@@ -15,12 +15,12 @@ def structure_function(input,nScales = 10, noiseScales = 10, method = 'fit', mea
     noiseScales : int
        Number of scales used for noise estimation.  Defaults to 10.  To suppress 
        noise correction, set to 0.
-    method : 'fit' or 'interpolate'
-       Choses method to estimate the 1/e widths of the ACFs.  Defaults to fitting 
-       a Gaussian ('fit').  'interpolate' uses a spline interpolation
+    method : 'fit', 'interpolate', or 'contour'
+       Choses method to estimate the 1/e widths of the ACFs.  Defaults to 'interpolate' 
+       for 1D and 'contour' for 2D.
     meanCorrection : bool
-       If True, calculates a proper covariance in PCA matrix.  If False (default), no correction
-       is applied, following the literature approach.
+       If True, calculates a proper covariance in PCA matrix.  If False (default), 
+       no correctio nis applied, following the literature approach.
 
     Returns
     -------
@@ -47,6 +47,6 @@ def structure_function(input,nScales = 10, noiseScales = 10, method = 'fit', mea
     acorImg = pca.AutoCorrelateImages(imgStack)
     NoiseACF = pca.NoiseACF(evec, cube ,nScales = noiseScales)
     acorSpec = pca.AutoCorrelateSpectrum(evec, nScales = nScales)
-    line_width = pca.WidthEstimate1D(acorSpec, method = method)
-    size = pca.WidthEstimate2D(acorImg, NoiseACF = NoiseACF, method = method)
+    line_width = pca.WidthEstimate1D(acorSpec, method = spectralMethod)
+    size = pca.WidthEstimate2D(acorImg, NoiseACF = NoiseACF, method = spatialMethod)
     return size,line_width

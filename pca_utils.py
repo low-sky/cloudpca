@@ -6,29 +6,46 @@ from scipy.interpolate import LSQUnivariateSpline,interp1d
 from astropy.modeling import models, fitting
 from scipy.signal import argrelmin
 import pdb
+import matplotlib.pyplot as plt
+def Exponential1D(x, amp, scale):
+    return amp*np.exp(-x/scale)
 
-def WidthEstimate2D(inList, method = 'fit', NoiseACF = 0):
+def Exponential2D(x,y,x0,y0,amp,xscale,yscale,theta):
+    xrot =  x*np.cos(theta) + y*np.sin(theta)
+    yrot = -x*np.sin(theta) + y*np.cos(theta)
+    dist = ((xrot/xscale)**2 + (yrot/yscale)**2)**0.5
+    return (amp*np.exp(-dist)).flatten()
+
+def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
     scales = np.zeros(len(inList))
-    for idx,z in enumerate(inList):
+    for idx,zraw in enumerate(inList):
+        z = zraw - NoiseACF
         x = fft.fftfreq(z.shape[0])*z.shape[0]/2.0
         y = fft.fftfreq(z.shape[1])*z.shape[1]/2.0
-        xmat,ymat = np.meshgrid(x,y,indexing='xy')
+        xmat,ymat = np.meshgrid(x,y,indexing='ij')
+        z = np.roll(z,z.shape[0]/2,axis=0)
+        z = np.roll(z,z.shape[1]/2,axis=1)
+        xmat = np.roll(xmat,xmat.shape[0]/2,axis=0)
+        xmat = np.roll(xmat,xmat.shape[1]/2,axis=1)
+        ymat = np.roll(ymat,ymat.shape[0]/2,axis=0)
+        ymat = np.roll(ymat,ymat.shape[1]/2,axis=1)
         rmat = (xmat**2+ymat**2)**0.5
+
         if method == 'fit':
             g = models.Gaussian2D(x_mean=[0],y_mean=[0],
-                             x_stddev =[1],y_stddev = [1],
-                             amplitude = z[0,0],
-                             theta = [0],
-                             fixed ={'amplitude':True,
-                                     'x_mean':True,
-                                     'y_mean':True})
+                                  x_stddev =[1],y_stddev = [1],
+                                  amplitude = z[0,0],
+                                  theta = [0],
+                                  fixed ={'amplitude':True,
+                                          'x_mean':True,
+                                          'y_mean':True})
             fit_g = fitting.LevMarLSQFitter()
-            output = fit_g(g,xmat,ymat,z-NoiseACF)
+            output = fit_g(g,np.abs(xmat)**0.5,np.abs(ymat)**0.5,z)
             scales[idx]=2**0.5*np.sqrt(output.x_stddev.value[0]**2+
                                        output.y_stddev.value[0]**2)
         if method == 'interpolate':
             rvec = rmat.ravel()
-            zvec = (z-NoiseACF).ravel()
+            zvec = z.ravel()
             zvec /= zvec.max()
             sortidx = np.argsort(zvec)
             rvec = rvec[sortidx]
@@ -36,14 +53,60 @@ def WidthEstimate2D(inList, method = 'fit', NoiseACF = 0):
             dz = len(zvec)/100.
             spl = LSQUnivariateSpline(zvec,rvec,zvec[dz::dz])
             scales[idx] = spl(np.exp(-1))
+        if method == 'xinterpolate':
+            g = models.Gaussian2D(x_mean=[0],y_mean=[0],
+                                  x_stddev =[1],y_stddev = [1],
+                                  amplitude = z[0,0],
+                                  theta = [0],
+                                  fixed ={'amplitude':True,
+                                          'x_mean':True,
+                                          'y_mean':True})
+            fit_g = fitting.LevMarLSQFitter()
+            output = fit_g(g,xmat,ymat,z)
+            aspect = 1/(output.x_stddev.value[0]/output.y_stddev.value[0])
+            theta = output.theta.value[0]
+            rmat = ((xmat * np.cos(theta) + ymat * np.sin(theta))**2+\
+                (-xmat * np.sin(theta) + ymat * np.cos(theta))**2*\
+                aspect**2)**0.5
+            rvec = rmat.ravel()
+            zvec = z.ravel()
+            zvec /= zvec.max()
+            sortidx = np.argsort(zvec)
+            rvec = rvec[sortidx]
+            zvec = zvec[sortidx]
+            dz = len(zvec)/100.
+            spl = LSQUnivariateSpline(zvec,rvec,zvec[dz::dz])
+            scales[idx] = spl(np.exp(-1))
+            plt.plot((((xmat**2)+(ymat**2))**0.5).ravel(),z.ravel(),'b,')
+            plt.plot(rmat.ravel(),z.ravel(),'r,')
+            plt.vlines(scales[idx],zvec.min(),zvec.max())
+            plt.show()
+            pdb.set_trace()
+        if method == 'contour':
+            znorm = z
+            znorm /= znorm.max()
+#            plt.imshow(znorm,vmin=0,vmax=1)
+            cs = plt.contour(xmat,ymat,znorm,levels=[np.exp(-1)])
+            paths = (cs.collections[0].get_paths())
+#            plt.show()
+            plt.clf()
+           # Only points that contain the origin
 
-#        plt.imshow(z)
-#        plt.contour(output(xmat,ymat))
-#        plt.show()
+            if isinstance(paths,list) and len(paths)>1:
+                pidx = np.where([p.contains_point((0,0)) for p in paths])
+                if len(pidx[0])>0:
+                    paths = paths[pidx[0]]
+                    scales[idx] = (np.min(np.array([np.max(p.vertices[:,0]**2+p.vertices[:,1]**2) for p in paths])))**0.5
+                else:
+                    scales[idx] = np.nan
+            elif len(paths)>0:
+                scales[idx] = (np.max(paths[0].vertices[:,0]**2+paths[0].vertices[:,1]**2))**0.5
+            else:
+                scales[idx] = np.nan
     return scales
 
 
-def WidthEstimate1D(inList, method = 'fit'):
+def WidthEstimate1D(inList, method = 'interpolate'):
     scales = np.zeros(len(inList))
     for idx,y in enumerate(inList):
         x = fft.fftfreq(len(y))*len(y)/2.0
@@ -53,11 +116,23 @@ def WidthEstimate1D(inList, method = 'fit'):
                 interpolator = interp1d(y[0:minima[0]],x[0:minima[0]])
                 scales[idx] = interpolator(np.exp(-1))
         if method == 'fit':
-            g = models.Gaussian1D(amplitude=y[0],mean=[0],stddev = [1],
+            g = models.Gaussian1D(amplitude=y[0],mean=[0],stddev = [10],
                                   fixed={'amplitude':True,'mean':True})
             fit_g = fitting.LevMarLSQFitter()
-            output = fit_g(g,x,y)
+            minima = (argrelmin(y))[0]
+            if minima[0]>1:
+                xtrans = (np.abs(x)**0.5)[0:minima[0]]
+                yfit = y[0:minima[0]]
+            else:
+                xtrans = np.abs(x)**0.5
+                yfit = y
+            output = fit_g(g,xtrans,yfit)
             scales[idx]=np.abs(output.stddev.value[0])*(2**0.5)
+#             expmod = Model(Exponential1D)
+#             pars = expmod.make_params(amp=y[0],scale=5.0)
+#             pars['amp'].vary = False
+#             result = expmod.fit(y,x=x,params = pars)
+#             scales[idx] = result.params['scale'].value
     return scales
 
 
