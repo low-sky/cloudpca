@@ -18,23 +18,24 @@ def Exponential2D(x,y,x0,y0,amp,xscale,yscale,theta):
 
 def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
     scales = np.zeros(len(inList))
+
+    # set up the x/y grid just once
+    z = inList[0]
+    x = fft.fftfreq(z.shape[0])*z.shape[0]/2.0
+    y = fft.fftfreq(z.shape[1])*z.shape[1]/2.0
+    xmat,ymat = np.meshgrid(x,y,indexing='ij')
+    xmat = np.fft.fftshift(xmat)
+    ymat = np.fft.fftshift(ymat)
+    rmat = (xmat**2+ymat**2)**0.5
+
     for idx,zraw in enumerate(inList):
         z = zraw - NoiseACF
-        x = fft.fftfreq(z.shape[0])*z.shape[0]/2.0
-        y = fft.fftfreq(z.shape[1])*z.shape[1]/2.0
-        xmat,ymat = np.meshgrid(x,y,indexing='ij')
-        z = np.roll(z,z.shape[0]/2,axis=0)
-        z = np.roll(z,z.shape[1]/2,axis=1)
-        xmat = np.roll(xmat,xmat.shape[0]/2,axis=0)
-        xmat = np.roll(xmat,xmat.shape[1]/2,axis=1)
-        ymat = np.roll(ymat,ymat.shape[0]/2,axis=0)
-        ymat = np.roll(ymat,ymat.shape[1]/2,axis=1)
-        rmat = (xmat**2+ymat**2)**0.5
+        z = np.fft.fftshift(z)
 
         if method == 'fit':
             g = models.Gaussian2D(x_mean=[0],y_mean=[0],
                                   x_stddev =[1],y_stddev = [1],
-                                  amplitude = z[0,0],
+                                  amplitude = z.max(),
                                   theta = [0],
                                   fixed ={'amplitude':True,
                                           'x_mean':True,
