@@ -16,7 +16,7 @@ def Exponential2D(x,y,x0,y0,amp,xscale,yscale,theta):
     dist = ((xrot/xscale)**2 + (yrot/yscale)**2)**0.5
     return (amp*np.exp(-dist)).flatten()
 
-def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
+def WidthEstimate2D(inList, method='contour', NoiseACF=0):
     scales = np.zeros(len(inList))
 
     # set up the x/y grid just once
