@@ -3,7 +3,7 @@ import cloudpca
 from scipy.interpolate import UnivariateSpline
 
 # Read in a data cube
-s = SpectralCube.read('/Users/erosolo/Dropbox/AstroStatistics/ngc1333.13co.fits')
+s = SpectralCube.read('/Users/erik/Dropbox/AstroStatistics/ngc1333.13co.fits')
 s = s[100:,:,:]
 evals,evec,matrix = cloudpca.pca(s)
 ll = cloudpca.EigenImages(evec,s)

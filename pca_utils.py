@@ -7,6 +7,10 @@ from astropy.modeling import models, fitting
 from scipy.signal import argrelmin
 import pdb
 import matplotlib.pyplot as plt
+from matplotlib import _cntr as cntr
+import skimage.measure as measure 
+
+
 def Exponential1D(x, amp, scale):
     return amp*np.exp(-x/scale)
 
@@ -16,67 +20,40 @@ def Exponential2D(x,y,x0,y0,amp,xscale,yscale,theta):
     dist = ((xrot/xscale)**2 + (yrot/yscale)**2)**0.5
     return (amp*np.exp(-dist)).flatten()
 
-def WidthEstimate2D(inList, method='contour', NoiseACF=0,
-                    diagnosticplots=False):
-    """
-    Parameters
-    ----------
-    inList: list of 2d arrays
-        The list of autocorrelation images from which widths will be estimated
-    method: 'contour', 'fit', 'interpolate', or 'xinterpolate'
-        The width estimation method to use
-    NoiseACF: float or 2darray
-        The noise autocorrelation function to subtract from the autocorrelation
-        images
-    diagnosticsplots: bool
-        Show diagnostic plots for the first 9 autocorrelation images showing
-        the goodness of fit (for the gaussian estimator) or ??? (presently
-        nothing) for the others
-
-
-    Returns
-    -------
-    scales : array
-        The array of estimated scales with length len(inList)
-
-    """
+def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
     scales = np.zeros(len(inList))
-
-    # set up the x/y grid just once
-    z = inList[0]
-    x = fft.fftfreq(z.shape[0])*z.shape[0]/2.0
-    y = fft.fftfreq(z.shape[1])*z.shape[1]/2.0
-    xmat,ymat = np.meshgrid(x,y,indexing='ij')
-    xmat = np.fft.fftshift(xmat)
-    ymat = np.fft.fftshift(ymat)
-    rmat = (xmat**2+ymat**2)**0.5
-
     for idx,zraw in enumerate(inList):
         z = zraw - NoiseACF
-        if np.unravel_index(np.argmax(z), z.shape) == (0,0):
-            # has not been shifted yet
-            z = np.fft.fftshift(z)
+        x = fft.fftfreq(z.shape[0])*z.shape[0]/2.0
+        y = fft.fftfreq(z.shape[1])*z.shape[1]/2.0
+        xmat,ymat = np.meshgrid(x,y,indexing='ij')
+        z = np.roll(z,z.shape[0]/2,axis=0)
+        z = np.roll(z,z.shape[1]/2,axis=1)
+        xmat = np.roll(xmat,xmat.shape[0]/2,axis=0)
+        xmat = np.roll(xmat,xmat.shape[1]/2,axis=1)
+        ymat = np.roll(ymat,ymat.shape[0]/2,axis=0)
+        ymat = np.roll(ymat,ymat.shape[1]/2,axis=1)
+        rmat = (xmat**2+ymat**2)**0.5
 
         if method == 'fit':
             g = models.Gaussian2D(x_mean=[0],y_mean=[0],
-                                  x_stddev=[1],y_stddev=[1],
-                                  amplitude=z.max(),
-                                  theta=[0],
-                                  fixed={'amplitude':True,
-                                         'x_mean':True,
-                                         'y_mean':True})
+                                  x_stddev =[1],y_stddev = [1],
+                                  amplitude = z[0,0],
+                                  theta = [0],
+                                  fixed ={'amplitude':True,
+                                          'x_mean':True,
+                                          'y_mean':True})
             fit_g = fitting.LevMarLSQFitter()
-            output = fit_g(g, xmat, ymat, z)
-            scales[idx]=2**0.5*np.sqrt(output.x_stddev.value[0]**2+
-                                       output.y_stddev.value[0]**2)
-            if diagnosticplots and idx < 9:
-                ax = plt.subplot(3,3,idx+1)
-                ax.imshow(z, cmap='afmhot')
-                ax.contour(output(xmat,ymat), levels=[z.max(),
-                                                      z.max()/np.exp(1),
-                                                      z.max()/np.exp(1)/2.],
-                           colors=['c']*3)
-        elif method == 'interpolate':
+            output = fit_g(g,np.abs(xmat)**0.5,np.abs(ymat)**0.5,z)
+            aa = output.x_stddev.value[0]
+            bb = output.y_stddev.value[0]
+            kappa = 0.8
+            e=(3/((kappa+2)*(kappa+3.)))**(1/kappa)
+            a_correct=(aa**kappa-e**kappa)**(1/kappa)
+            b_correct=(bb**kappa-e**kappa)**(1/kappa)
+            scales[idx] = (0.5*a_correct**2 + 0.5*b_correct**2)**0.5
+
+        if method == 'interpolate':
             rvec = rmat.ravel()
             zvec = z.ravel()
             zvec /= zvec.max()
@@ -86,7 +63,7 @@ def WidthEstimate2D(inList, method='contour', NoiseACF=0,
             dz = len(zvec)/100.
             spl = LSQUnivariateSpline(zvec,rvec,zvec[dz::dz])
             scales[idx] = spl(np.exp(-1))
-        elif method == 'xinterpolate':
+        if method == 'xinterpolate':
             g = models.Gaussian2D(x_mean=[0],y_mean=[0],
                                   x_stddev =[1],y_stddev = [1],
                                   amplitude = z[0,0],
@@ -114,22 +91,28 @@ def WidthEstimate2D(inList, method='contour', NoiseACF=0,
             plt.plot(rmat.ravel(),z.ravel(),'r,')
             plt.vlines(scales[idx],zvec.min(),zvec.max())
             plt.show()
-            pdb.set_trace()
-        elif method == 'contour':
-            znorm = z
+        if method == 'contour':
+            znorm = np.copy(z)
             znorm /= znorm.max()
-#            plt.imshow(znorm,vmin=0,vmax=1)
-            cs = plt.contour(xmat,ymat,znorm,levels=[np.exp(-1)])
-            paths = (cs.collections[0].get_paths())
-#            plt.show()
-            plt.clf()
+            yy,xx = np.mgrid[:znorm.shape[0],:znorm.shape[1]]
+            C = cntr.Cntr(yy-znorm.shape[0]//2,xx-znorm.shape[1]//2,znorm)
+            pathXY = C.trace(np.exp(-1))
+            import matplotlib.path as path
+            if bool(pathXY):
+                paths = [path.Path(p) for p in pathXY[0:len(pathXY)/2]]
            # Only points that contain the origin
-
-            if isinstance(paths,list) and len(paths)>1:
-                pidx = np.where([p.contains_point((0,0)) for p in paths])
-                if len(pidx[0])>0:
-                    paths = paths[pidx[0]]
-                    scales[idx] = (np.min(np.array([np.max(p.vertices[:,0]**2+p.vertices[:,1]**2) for p in paths])))**0.5
+                pgood= [p for p in paths if p.contains_point((0,0))]
+                if pgood:
+                    em = measure.EllipseModel()
+                    elfit = em.estimate(np.c_[pgood[0].vertices[:,0],
+                                              pgood[0].vertices[:,1]])
+                    aa = em.params[2]
+                    bb = em.params[3]
+                    kappa = 0.8
+                    e=(3/((kappa+2)*(kappa+3.)))**(1/kappa)
+                    a_correct=(aa**kappa-e**kappa)**(1/kappa)
+                    b_correct=(bb**kappa-e**kappa)**(1/kappa)
+                    scales[idx] = (0.5*a_correct**2 + 0.5*b_correct**2)**0.5
                 else:
                     scales[idx] = np.nan
             elif len(paths)>0:
@@ -161,6 +144,7 @@ def WidthEstimate1D(inList, method = 'interpolate'):
                 yfit = y
             output = fit_g(g,xtrans,yfit)
             scales[idx]=np.abs(output.stddev.value[0])*(2**0.5)
+
 #             expmod = Model(Exponential1D)
 #             pars = expmod.make_params(amp=y[0],scale=5.0)
 #             pars['amp'].vary = False
