@@ -30,21 +30,23 @@ def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
 
     for idx,zraw in enumerate(inList):
         z = zraw - NoiseACF
-        z = np.fft.fftshift(z)
+        if np.unravel_index(np.argmax(z)) == (0,0):
+            # has not been shifted yet
+            z = np.fft.fftshift(z)
 
         if method == 'fit':
             g = models.Gaussian2D(x_mean=[0],y_mean=[0],
-                                  x_stddev =[1],y_stddev = [1],
-                                  amplitude = z.max(),
-                                  theta = [0],
-                                  fixed ={'amplitude':True,
-                                          'x_mean':True,
-                                          'y_mean':True})
+                                  x_stddev=[1],y_stddev=[1],
+                                  amplitude=z.max(),
+                                  theta=[0],
+                                  fixed={'amplitude':True,
+                                         'x_mean':True,
+                                         'y_mean':True})
             fit_g = fitting.LevMarLSQFitter()
             output = fit_g(g,np.abs(xmat)**0.5,np.abs(ymat)**0.5,z)
             scales[idx]=2**0.5*np.sqrt(output.x_stddev.value[0]**2+
                                        output.y_stddev.value[0]**2)
-        if method == 'interpolate':
+        elif method == 'interpolate':
             rvec = rmat.ravel()
             zvec = z.ravel()
             zvec /= zvec.max()
@@ -54,7 +56,7 @@ def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
             dz = len(zvec)/100.
             spl = LSQUnivariateSpline(zvec,rvec,zvec[dz::dz])
             scales[idx] = spl(np.exp(-1))
-        if method == 'xinterpolate':
+        elif method == 'xinterpolate':
             g = models.Gaussian2D(x_mean=[0],y_mean=[0],
                                   x_stddev =[1],y_stddev = [1],
                                   amplitude = z[0,0],
@@ -83,7 +85,7 @@ def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
             plt.vlines(scales[idx],zvec.min(),zvec.max())
             plt.show()
             pdb.set_trace()
-        if method == 'contour':
+        elif method == 'contour':
             znorm = z
             znorm /= znorm.max()
 #            plt.imshow(znorm,vmin=0,vmax=1)
