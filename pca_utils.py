@@ -16,7 +16,30 @@ def Exponential2D(x,y,x0,y0,amp,xscale,yscale,theta):
     dist = ((xrot/xscale)**2 + (yrot/yscale)**2)**0.5
     return (amp*np.exp(-dist)).flatten()
 
-def WidthEstimate2D(inList, method='contour', NoiseACF=0):
+def WidthEstimate2D(inList, method='contour', NoiseACF=0,
+                    diagnosticplots=False):
+    """
+    Parameters
+    ----------
+    inList: list of 2d arrays
+        The list of autocorrelation images from which widths will be estimated
+    method: 'contour', 'fit', 'interpolate', or 'xinterpolate'
+        The width estimation method to use
+    NoiseACF: float or 2darray
+        The noise autocorrelation function to subtract from the autocorrelation
+        images
+    diagnosticsplots: bool
+        Show diagnostic plots for the first 9 autocorrelation images showing
+        the goodness of fit (for the gaussian estimator) or ??? (presently
+        nothing) for the others
+
+
+    Returns
+    -------
+    scales : array
+        The array of estimated scales with length len(inList)
+
+    """
     scales = np.zeros(len(inList))
 
     # set up the x/y grid just once
@@ -43,9 +66,16 @@ def WidthEstimate2D(inList, method='contour', NoiseACF=0):
                                          'x_mean':True,
                                          'y_mean':True})
             fit_g = fitting.LevMarLSQFitter()
-            output = fit_g(g,np.abs(xmat)**0.5,np.abs(ymat)**0.5,z)
+            output = fit_g(g, xmat, ymat, z)
             scales[idx]=2**0.5*np.sqrt(output.x_stddev.value[0]**2+
                                        output.y_stddev.value[0]**2)
+            if diagnosticplots and idx < 9:
+                ax = plt.subplot(3,3,idx+1)
+                ax.imshow(z, cmap='afmhot')
+                ax.contour(output(xmat,ymat), levels=[z.max(),
+                                                      z.max()/np.exp(1),
+                                                      z.max()/np.exp(1)/2.],
+                           colors=['c']*3)
         elif method == 'interpolate':
             rvec = rmat.ravel()
             zvec = z.ravel()
