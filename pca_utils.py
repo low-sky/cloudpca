@@ -30,7 +30,7 @@ def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
 
     for idx,zraw in enumerate(inList):
         z = zraw - NoiseACF
-        if np.unravel_index(np.argmax(z)) == (0,0):
+        if np.unravel_index(np.argmax(z), z.shape) == (0,0):
             # has not been shifted yet
             z = np.fft.fftshift(z)
 
