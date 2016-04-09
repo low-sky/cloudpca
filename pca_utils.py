@@ -93,6 +93,7 @@ def WidthEstimate2D(inList, method = 'contour', NoiseACF = 0):
             plt.show()
         if method == 'contour':
             znorm = np.copy(z)
+            znorm -= znorm.min()
             znorm /= znorm.max()
             yy,xx = np.mgrid[:znorm.shape[0],:znorm.shape[1]]
             C = cntr.Cntr(yy-znorm.shape[0]//2,xx-znorm.shape[1]//2,znorm)
@@ -128,8 +129,10 @@ def WidthEstimate1D(inList, method = 'interpolate'):
         x = fft.fftfreq(len(y))*len(y)/2.0
         if method == 'interpolate':
             minima = (argrelmin(y))[0]
+            if len(minima) == 0:
+                minima = [np.argmin(y)]
             if minima[0]>1:
-                interpolator = interp1d(y[0:minima[0]],x[0:minima[0]])
+                interpolator = interp1d(y[0:minima[0]],x[0:minima[0]],bounds_error=False)
                 scales[idx] = interpolator(np.exp(-1))
         if method == 'fit':
             g = models.Gaussian1D(amplitude=y[0],mean=[0],stddev = [10],
@@ -178,7 +181,7 @@ def NoiseACF(evec, cube, nScales = 10):
     for idx in range(nScales):
         thisImage = np.zeros((cube.shape[1],cube.shape[2]))
         for channel in range(cube.shape[0]):
-            thisImage +=np.nan_to_num(cube[channel,:,:].value*evec[channel,-(idx+1)])
+            thisImage +=np.nan_to_num(cube[channel,:,:]*evec[channel,-(idx+1)])
         imageList.append(thisImage)
     acorList = []
     for image in imageList:
@@ -198,7 +201,7 @@ def EigenImages(evec,cube,nScales = 10):
     for idx in range(nScales):
         thisImage = np.zeros((cube.shape[1],cube.shape[2]))
         for channel in range(cube.shape[0]):
-            thisImage +=np.nan_to_num(cube[channel,:,:].value*evec[channel,idx])
+            thisImage +=np.nan_to_num(cube[channel,:,:]*evec[channel,idx])
         imageList.append(thisImage)
     return imageList
 
@@ -208,16 +211,16 @@ def pca(cube, meanCorrection = False):
     ChannelMeans = np.zeros((cube.shape[0]))
     if meanCorrection:
         for i in range(cube.shape[0]):
-            ChannelMeans[i] = np.nanmean(cube[i,:,:].value)
+            ChannelMeans[i] = np.nanmean(cube[i,:,:])
     else:
         ChannelMeans = np.zeros(cube.shape[0])
-        
+
     for i in range(cube.shape[0]):
         for j in range(i):
-            PlaneProduct = (cube[i,:,:].value-ChannelMeans[i])*(cube[j,:,:].value-ChannelMeans[j])
+            PlaneProduct = (cube[i,:,:]-ChannelMeans[i])*(cube[j,:,:]-ChannelMeans[j])
             PCAMatrix[i,j] = np.nanmean(PlaneProduct)
             GoodCount[i,j] = np.sum(np.isfinite(PlaneProduct))
-        PCAMatrix[i,i] = np.nanmean((cube[i,:,:].value-ChannelMeans[i])**2)
+        PCAMatrix[i,i] = np.nanmean((cube[i,:,:]-ChannelMeans[i])**2)
         GoodCount[i,i] = np.sum(np.isfinite(cube[i,:,:]))
 
     PCAMatrix = PCAMatrix + np.transpose(PCAMatrix)

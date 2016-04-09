@@ -33,12 +33,15 @@ def structure_function(input,nScales = 10, noiseScales = 10, spatialMethod = 'co
 
 
     if isinstance(input,SpectralCube):
-        cube = input
+        cube = input.filled_data[:].value
     elif isinstance(input,str):
         try:
-            cube = SpectralCube.read(input)
+            speccube = SpectralCube.read(input)
+            cube = input.filled_data[:].value
         except:
             raise
+    elif isinstance(input,np.array):
+        cube = input
     else:
         raise NotImplementedError
 
